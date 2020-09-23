@@ -2,6 +2,11 @@ from socket import *
 from struct import pack
 import curses, ssl, sys
 
+def log(*args):
+    args = " ".join([str(x) for x in args])
+    with open("log.txt", "a") as f:
+        f.write(args + "\n")
+
 class ClientProtocol:
 
     def __init__(self):
@@ -41,9 +46,141 @@ class ClientProtocol:
         ack = self.socket.recv(1)
         if ack != b"\00":
             print("Error: got non-zero ack byte " + ack.hex())
-        # could handle a bad ack here, but we'll assume it's fine.
+
+def makeData(data):
+    out = []
+    pos = 0
+    #print(bytes(data[:20], "utf-8"))
+    ccol = ()
+    while pos < len(data):
+        if ord(data[pos]) == 27:
+            pos += 2
+            if data[pos] == "0": pos += 2; continue
+            if data[pos] == "4": fg = False; bg = True
+            else: fg = True; bg = False
+            pos += 5 #skip ;5;
+            num = ""
+            while data[pos] != "m":
+                num += data[pos]
+                pos += 1
+            num = int(num)
+            #print(num)
+            pos += 1
+            ccol = (fg, bg, num)
+        else:
+            #log("'" + data[pos] + "'")
+            #if data[pos] == " ":
+                #log("reee")
+            #    out.append((ccol, "█"))
+            #else:
+            out.append((ccol, data[pos]))
+            pos += 1
+    return out
+
+class MemeWin:
+    def __init__(self, imgdata, metadata):
+        self.data = makeData(imgdata)
+        self.metadata = metadata
+        self.width = 0
+        while self.data[self.width][1] != "\n": self.width += 1
+        self.width += 2
+        self.height = len(imgdata.split("\n")) + 4
+        self.s = curses.newwin(self.height, self.width, 3, 3)
+        self.y = 3
+
+    def move(self, y):
+        self.s.mvwin(y, 3)
+        self.y = y
+
+    def draw(self):
+        self.s.erase()
+        self.s.addstr(0, 0, "┌" + "─" * (self.width - 2) + "┐")
+        for i in range(1, self.height - 2):
+            self.s.addstr(i, 0, "│" + " " * (self.width - 2) + "│")
+        self.s.addstr(self.height - 2, 0, "└" + "─" * (self.width - 2) + "┘")
+
+        self.s.addstr(1, 2, self.metadata["title"])
+
+        votestr = "↑↓" + str(self.metadata["votes"])
+        self.s.addstr(1, self.width - 2 - len(votestr), votestr)
+
+        self.s.addstr(self.height - 3, 2, str(len(self.metadata["comments"])) + " Comments")
+        y = 2
+        x = 1
+        for char in self.data:
+            if char[1] == "\n":
+                y += 1
+                x = 1
+            else:
+                self.s.addstr(y, x, char[1], curses.color_pair(char[0][2]))
+                x += 1
+                
+        self.s.refresh() 
+
+class Application:
+    def __init__(self):
+        self.wins = []
+        with open("file.txt", "r") as f:
+            data = f.read()
+        #print(makeData(data))
+    
+    def mainLoop(self):
+        curses.wrapper(self.main)
+        pass
+    def getInput(self):
+        ch = self.s.getch()
+        self.s.addstr(str(ch))
+        if ch == 27: #esc
+            return False
+        elif ch == 259: #up
+            for win in self.wins:
+                win.move(win.y - 1)
+        elif ch == 258: #down
+            for win in self.wins:
+                win.move(win.y + 1)
+        return True
+        
+    def drawScreen(self):
+        #self.s.erase()
+        for win in self.wins:
+            win.draw()
+        self.s.refresh()
+
+    def main(self, stdscr):
+        self.s = stdscr
+        running = True
+        curses.use_default_colors()
+        for i in range(0, curses.COLORS):
+            curses.init_pair(i + 1, i, 255-i)
+            
+        with open("file.txt", "r") as f:
+            data = f.read()
+        self.wins.append(MemeWin(data, {"title": "An interesting title", "votes": 4, "comments": []}))
+        while running:
+            running = self.getInput()
+            self.drawScreen()
 
 if __name__ == '__main__':
+    a = Application()
+    a.mainLoop()
+    """
+    stdscr = curses.initscr()
+    curses.noecho()
+    curses.cbreak()
+    curses.keypad(True)
+    
+    while True:
+        getInput(stdscr)
+        drawScreen(stdscr)
+
+
+    curses.echo()
+    curses.keypad(False)
+    curses.echo()
+    curses.endwin()
+    """
+    
+    """
     cp = ClientProtocol()
 
     with open('file.txt', 'rb') as fp:
@@ -63,3 +200,4 @@ if __name__ == '__main__':
     cp.sendBytes(data)
     cp.sendBytes("quit".encode("utf-8"))
     cp.close()
+    """
