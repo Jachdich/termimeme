@@ -51,7 +51,11 @@ def makeData(data):
     out = []
     pos = 0
     #print(bytes(data[:20], "utf-8"))
-    ccol = ()
+    cfg = 0
+    cbg = 0
+    pair = 0
+    maxpair = 0
+    pairs = {}
     while pos < len(data):
         if ord(data[pos]) == 27:
             pos += 2
@@ -66,14 +70,27 @@ def makeData(data):
             num = int(num)
             #print(num)
             pos += 1
-            ccol = (fg, bg, num)
+            if fg:
+                cfg = num
+            if bg:
+                cbg = num
+
+            if not (cfg, cbg) in pairs:
+                maxpair += 1
+                pair = maxpair
+                pairs[(cfg, cbg)] = pair
+                curses.init_pair(pair, cfg, cbg)
+            else:
+                pair = pairs[(cfg, cbg)]
+
+            
         else:
             #log("'" + data[pos] + "'")
             #if data[pos] == " ":
                 #log("reee")
             #    out.append((ccol, "█"))
             #else:
-            out.append((ccol, data[pos]))
+            out.append((pair, data[pos]))
             pos += 1
     return out
 
@@ -112,7 +129,9 @@ class MemeWin:
                 y += 1
                 x = 1
             else:
-                self.s.addstr(y, x, char[1], curses.color_pair(char[0][2]))
+                #curses.init_pair(1, char[0], char[1])
+                #log(char[0], y, x)
+                self.s.addstr(y, x, char[1], curses.color_pair(char[0]))
                 x += 1
                 
         self.s.refresh() 
@@ -150,8 +169,6 @@ class Application:
         self.s = stdscr
         running = True
         curses.use_default_colors()
-        for i in range(0, curses.COLORS):
-            curses.init_pair(i + 1, i, 255-i)
             
         with open("file.txt", "r") as f:
             data = f.read()
