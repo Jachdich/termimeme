@@ -1,6 +1,6 @@
-import os, threading, random, json, ssl
+import os, threading, random, json, ssl, sys
 from socket import *
-from struct import unpack
+from struct import unpack, pack
 
 PATH = "/var/www/html"
 
@@ -27,12 +27,29 @@ class ServerProtocol:
             self.connection.sendall(b'\00')
         return data
 
+    def send_msg(self, data):
+        length = pack('>Q', len(data))
+        self.connection.sendall(length)
+        self.connection.sendall(data)
+
     def gen_id(self):
         return str(random.randint(0, 100000))
 
     def authenticate_user(self, username, password):
         self.user = username
         return True
+
+    def index_posts(self):
+        x = []
+        for f in os.listdir(PATH + "/meme/"):
+            if f.endswith(".metadata"): continue
+            with open(PATH + "/meme/" + f + ".metadata", "r") as fp:
+                metadata = json.loads(fp.read())
+            with open(PATH + "/meme/" + f, "r") as fp:
+                data = fp.read()
+            x.append({"data": data, **metadata})
+        return x
+            
         
     def handle_client(self):
         try:
@@ -43,8 +60,8 @@ class ServerProtocol:
                     break
                 elif command == b"login":
                     self.connection.sendall(b'\00')
-                    username = self.recv_msg()
-                    password = self.recv_msg()
+                    username = self.recv_msg().decode("utf-8")
+                    password = self.recv_msg().decode("utf-8")
                     if self.authenticate_user(username, password):
                         self.connection.sendall(b"\00")
                         continue
@@ -71,6 +88,10 @@ class ServerProtocol:
                     pass
                 elif command == b"comment":
                     pass
+                elif command == b"get":
+                    sort = self.recv_msg()
+                    x = self.index_posts()
+                    self.send_msg(json.dumps(x).encode("utf-8"))
                 
         finally:
             self.connection.shutdown(SHUT_WR)
@@ -91,6 +112,15 @@ if __name__ == '__main__':
             sp_thread = threading.Thread(target=sp.handle_client)
             sp_thread.start()
             clients.append((sp, sp_thread))
+
+    except Exception as e:
+        ss.close()
+        s.close()
+        raise e
+    except KeyboardInterrupt:
+        ss.close()
+        s.close()
+        sys.exit(1)
     finally:
         ss.close()
         s.close()
