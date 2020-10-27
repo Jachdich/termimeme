@@ -4,6 +4,23 @@ from struct import unpack, pack
 
 PATH = "/var/www/html"
 
+class getmeta:
+    def __init__(self, ID):
+        self.ID = ID
+        
+    def __enter__(self):
+        print("getmeta for " + self.ID)
+        with open(PATH + "/meme/" + self.ID + ".metadata", "r") as f:
+            self.data = json.loads(f.read())
+        return self.data
+
+    def __exit__(self, type, value, traceback):
+        print("getmeta cleaning up for " + self.ID)
+        with open(PATH + "/meme/" + self.ID + ".metadata", "w") as f:
+            f.write(json.dumps(self.data))
+
+
+
 class ServerProtocol:
 
     def __init__(self, connection):
@@ -70,9 +87,7 @@ class ServerProtocol:
                     
                 if self.user == None:
                     self.connection.sendall(b'\01') #need to log in
-                    continue
-                self.connection.sendall(b'\00')
-                    
+                    continue                    
                 
                 if command == b"upload":
                     title = self.recv_msg().decode("utf-8")
@@ -83,14 +98,23 @@ class ServerProtocol:
                         f.write(data)
                     with open(PATH + "/meme/" + ID + ".metadata", "w") as f:
                         f.write(metadata)
+                    self.connection.sendall(b'\00')
 
                 elif command == b"upvote":
-                    pass
+                    ID = self.recv_msg().decode("utf-8")
+                    with getmeta(ID) as meta:
+                        meta["votes"] += 1
+
+                    self.connection.sendall(b'\00')
+                    
+                    
                 elif command == b"comment":
+                    self.connection.sendall(b'\00')
                     pass
                 elif command == b"get":
                     sort = self.recv_msg()
                     x = self.index_posts()
+                    self.connection.sendall(b'\00')
                     self.send_msg(json.dumps(x).encode("utf-8"))
                 
         finally:
@@ -101,7 +125,7 @@ if __name__ == '__main__':
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certfile="cert.pem", keyfile="cert.pem")
     s = socket(AF_INET, SOCK_STREAM)
-    s.bind(("127.0.0.1", 6967))
+    s.bind(("127.0.0.1", 6969))
     s.listen(100)
     ss = context.wrap_socket(s, server_side=True)
     clients = []

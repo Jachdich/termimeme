@@ -7,6 +7,8 @@ from read_image import makeData
 
 term = Terminal()
 
+with open("log.txt", "w") as f: pass
+
 def log(*args):
     args = " ".join([str(x) for x in args])
     with open("log.txt", "a") as f:
@@ -72,6 +74,7 @@ class MemeWin:
         self.width = 0
         while self.data[self.width][2] != "\n": self.width += 1
         self.width += 2
+        if len(metadata["title"]) + 8 > self.width: self.width = len(metadata["title"]) + 8
         self.height = len(imgdata.split("\n")) + 4
         #self.s = curses.newwin(self.height, self.width, 3, 3)
         self.y = 0
@@ -82,35 +85,34 @@ class MemeWin:
         self.y = y
 
     def draw(self):
-        if self.y < 0: return
-        if self.y > term.height - self.height: return
+        #if self.y > term.height + self.height: return
+        #if self.y < 0 - self.height: return
         top = "┌" + "─" * (self.width - 2) + "┐" + "\n"
-        sides = ""
-        for i in range(1, self.height - 2):
-            sides += "│" + " " * (self.width - 2) + "│" + "\n"
-                
         bottom = "└" + "─" * (self.width - 2) + "┘" + "\n"
-
-        with term.location(x=self.x, y=self.y):
-            print(top + sides + bottom)
-
-        with term.location(x=self.x + 2, y=self.y + 1):
-            print(self.metadata["title"])
-
         votestr = "↑↓" + str(self.metadata["votes"])
-        with term.location(x=self.x + self.width - 2 - len(votestr), y=self.y + 1):
-            print(votestr)
+        comments = str(self.y)        + " Comments"
+#len(self.metadata["comments"]))
+        commentstr = "│ " + comments + " " * (self.width - 3 - len(comments)) + "│\n"
 
-        with term.location(x=self.x + 2, y=self.height - 3 + self.y):
-            print(str(len(self.metadata["comments"])) + " Comments")
-
-        img = ""
+        img = top + "│ " + self.metadata["title"] +\
+               " " * (self.width - len(self.metadata["title"]) - 4 - len(votestr)) +\
+               votestr + " │\n│"
         for char in self.data:
             fg = char[0]
             bg = char[1]
+            if char[2] == "\n":
+                img += term.normal + "│\n│"
+                continue
             img += term.on_color_rgb(bg[0], bg[1], bg[2]) + term.color_rgb(fg[0], fg[1], fg[2]) + char[2]
-        with term.location(x=self.x + 1, y = self.y + 2):
-            print(img)
+        if img.endswith("\n│"): img = img[:-2]
+        
+        img += "\n" + commentstr + bottom
+        
+        for y, line in enumerate(img.split("\n")):
+            if (y + self.y) < 2 or (y + self.y) >= term.height: continue
+            
+            with term.location(x=self.x, y=y + self.y):
+                print(line)
                 
                 
 class Application:
@@ -130,14 +132,18 @@ class Application:
 
     def getInput(self):
         ch = term.inkey()
+        log(ch.name)
         if ch.name == u"KEY_ESCAPE":
             return False
         elif ch.name == u"KEY_UP": 
             for win in self.wins:
-                win.y += 1
+                win.y += 4
         elif ch.name == u"KEY_DOWN":
             for win in self.wins:
-                win.y -= 1
+                win.y -= 4
+        elif ch.name == u"a":
+            #upvote
+            self.wins[0].
         return True
         
     def drawScreen(self):
@@ -152,17 +158,22 @@ class Application:
 
         cp.sendBytes("get".encode("utf-8"))
         cp.sendBytes("top".encode("utf-8"))
-        data = json.loads(cp.recvBytes().decode("utf-8"))[0] 
-        self.wins.append(MemeWin(data["data"], data))
+        data = json.loads(cp.recvBytes().decode("utf-8"))[:2]
+        y = 0
+        for n in data:
+            self.wins.append(MemeWin(n["data"], n,))
+            self.wins[-1].y = y
+            y += self.wins[-1].height
 
         running = True
         while running:
             running = self.getInput()
             self.drawScreen()
+        cp.close()
 
 if __name__ == '__main__':
     cp = ClientProtocol()
-    cp.connect('127.0.0.1', 6967)
+    cp.connect('127.0.0.1', 6969)
     success = cp.authenticate("Jachdich", "password")
     if success:
         print("Logged in!")
@@ -173,11 +184,10 @@ if __name__ == '__main__':
 
     a = Application(cp)
     a.mainLoop()
-    
-    #with open('test24bit.txt', 'rb') as fp:
-    #    data = fp.read()        
-    #cp.sendBytes("upload".encode("utf-8"))
-    #cp.sendBytes("An interesting title".encode("utf-8"))
-    #cp.sendBytes(data)
-    #cp.sendBytes("quit".encode("utf-8"))
-    cp.close()
+    #for ree in range(9):
+    #    with open('mem' + str(ree) + '.txt', 'rb') as fp:
+    #        data = fp.read()        
+    #    cp.sendBytes("upload".encode("utf-8"))
+    #    cp.sendBytes("An interesting title: mem{}".format(ree).encode("utf-8"))
+    #    cp.sendBytes(data)
+    #cp.close()
