@@ -152,7 +152,7 @@ class Application:
 
         cp.sendBytes("get".encode("utf-8"))
         cp.sendBytes("top".encode("utf-8"))
-        data = json.loads(cp.recvBytes().decode("utf-8"))[0]
+        data = json.loads(cp.recvBytes().decode("utf-8"))[0] 
         self.wins.append(MemeWin(data["data"], data))
 
         running = True

@@ -1,14 +1,4 @@
 import json
-with open("256colourto24bit.json", "r") as f:
-    colour_translation = json.loads(f.read())
-
-def c256torgb(c):
-    n = int(colour_translation[str(c)][2:], 16)
-    r = (n >> 16) & 0xFF
-    g = (n >>  8) & 0xFF
-    b = (n >>  0) & 0xFF
-    return r,g,b
-    
 
 def read_until(char, data, pos):
     start = pos
