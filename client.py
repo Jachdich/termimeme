@@ -65,7 +65,7 @@ class ClientProtocol:
 
         ack = self.socket.recv(1)
         if ack != b"\00":
-            print("Error: got non-zero ack byte " + ack.hex())
+            print("Error: got non-zero ack byte '" + ack.hex() + "'")
 
 class MemeWin:
     def __init__(self, imgdata, metadata):
@@ -85,18 +85,19 @@ class MemeWin:
         self.y = y
 
     def draw(self):
-        #if self.y > term.height + self.height: return
-        #if self.y < 0 - self.height: return
+        if self.y > term.height + self.height: return
+        if self.y < 0 - self.height: return
         top = "┌" + "─" * (self.width - 2) + "┐" + "\n"
         bottom = "└" + "─" * (self.width - 2) + "┘" + "\n"
         votestr = "↑↓" + str(self.metadata["votes"])
         comments = str(self.y)        + " Comments"
-#len(self.metadata["comments"]))
-        commentstr = "│ " + comments + " " * (self.width - 3 - len(comments)) + "│\n"
+        date = self.metadata["date"] + " "
+        commentstr = "│ " + comments + " " * (self.width - 3 - len(comments) - len(date)) + date + "│\n"
 
         img = top + "│ " + self.metadata["title"] +\
                " " * (self.width - len(self.metadata["title"]) - 4 - len(votestr)) +\
                votestr + " │\n│"
+               
         for char in self.data:
             fg = char[0]
             bg = char[1]
@@ -107,13 +108,18 @@ class MemeWin:
         if img.endswith("\n│"): img = img[:-2]
         
         img += "\n" + commentstr + bottom
+        trunk_img = ""
+        start_y = self.y
+        if self.y < 10: start_y = 10 
         
         for y, line in enumerate(img.split("\n")):
-            if (y + self.y) < 2 or (y + self.y) >= term.height: continue
-            
-            with term.location(x=self.x, y=y + self.y):
-                print(line)
-                
+            if (y + self.y) < 10 or (y + self.y) > term.height:
+                pass
+            else:
+                trunk_img += line + "\n"
+
+        term.move_xy(self.x, start_y)
+        print(trunk_img)
                 
 class Application:
     def __init__(self, cp):
@@ -141,9 +147,11 @@ class Application:
         elif ch.name == u"KEY_DOWN":
             for win in self.wins:
                 win.y -= 4
-        elif ch.name == u"a":
-            #upvote
-            self.wins[0].
+        elif repr(ch) == "'a'":
+            self.cp.sendBytes("upvote".encode("utf-8"))
+            self.cp.sendBytes(str(self.wins[0].metadata["id"]).encode("utf-8"))
+            
+            pass
         return True
         
     def drawScreen(self):
@@ -156,37 +164,38 @@ class Application:
         #    data = f.read()
         #self.wins.append(MemeWin(data, {"title": "An interesting title", "votes": 4, "comments": []}))
 
-        cp.sendBytes("get".encode("utf-8"))
-        cp.sendBytes("top".encode("utf-8"))
-        data = json.loads(cp.recvBytes().decode("utf-8"))[:2]
+        self.cp.sendBytes("get".encode("utf-8"))
+        self.cp.sendBytes("top".encode("utf-8"))
+        data = json.loads(self.cp.recvBytes().decode("utf-8"))
         y = 0
         for n in data:
             self.wins.append(MemeWin(n["data"], n,))
             self.wins[-1].y = y
             y += self.wins[-1].height
 
+
         running = True
         while running:
             running = self.getInput()
             self.drawScreen()
-        cp.close()
+        self.cp.close()
 
 if __name__ == '__main__':
     cp = ClientProtocol()
-    cp.connect('127.0.0.1', 6969)
+    cp.connect('127.0.0.1', 6968)
     success = cp.authenticate("Jachdich", "password")
     if success:
         print("Logged in!")
     else:
         print("Invalid username or password!")
-        cp.sendBytes(b"quit")
+        cp.close()
         sys.exit(1)
 
     a = Application(cp)
     a.mainLoop()
     #for ree in range(9):
     #    with open('mem' + str(ree) + '.txt', 'rb') as fp:
-    #        data = fp.read()        
+    #        data = fp.read()
     #    cp.sendBytes("upload".encode("utf-8"))
     #    cp.sendBytes("An interesting title: mem{}".format(ree).encode("utf-8"))
     #    cp.sendBytes(data)
