@@ -2,6 +2,7 @@ from socket import *
 from struct import pack, unpack
 import curses, ssl, sys, time, json
 from blessed import Terminal
+from math import *
 
 from read_image import makeData
 
@@ -13,6 +14,8 @@ def log(*args):
     args = " ".join([str(x) for x in args])
     with open("log.txt", "a") as f:
         f.write(args + "\n")
+    
+rtn = lambda x, n: round(x, -int(floor(log10(x))) + (n - 1))
 
 class ClientProtocol:
 
@@ -79,24 +82,20 @@ class MemeWin:
         #self.s = curses.newwin(self.height, self.width, 3, 3)
         self.y = 0
         self.x = 0
+        self.update_data()
 
-    def move(self, y):
-        #self.s.mvwin(y, 3)
-        self.y = y
-
-    def draw(self):
-        if self.y > term.height + self.height: return
-        if self.y < 0 - self.height: return
+    def update_data(self,start=0):
         top = "┌" + "─" * (self.width - 2) + "┐" + "\n"
         bottom = "└" + "─" * (self.width - 2) + "┘" + "\n"
         votestr = "↑↓" + str(self.metadata["votes"])
-        comments = str(self.y)        + " Comments"
+        comments = str(start) + " Comments"
         date = self.metadata["date"] + " "
+        
         commentstr = "│ " + comments + " " * (self.width - 3 - len(comments) - len(date)) + date + "│\n"
 
         img = top + "│ " + self.metadata["title"] +\
                " " * (self.width - len(self.metadata["title"]) - 4 - len(votestr)) +\
-               votestr + " │\n│"
+               votestr + " │\n│" + term.reset
                
         for char in self.data:
             fg = char[0]
@@ -108,22 +107,46 @@ class MemeWin:
         if img.endswith("\n│"): img = img[:-2]
         
         img += "\n" + commentstr + bottom
-        trunk_img = ""
-        start_y = self.y
-        if self.y < 10: start_y = 10 
+        self.img = img.split("\n")
+
+    def move(self, y):
+        #self.s.mvwin(y, 3)
+        self.y = y
+
+    def draw(self, select=False):
+        if self.y > term.height + self.height: return
+        if self.y < 0 - self.height: return
+        a = time.time()
         
-        for y, line in enumerate(img.split("\n")):
+        start_y = self.y
+        start = 0
+        if self.y < 0: start_y = 0; start = -self.y
+        
+        end = len(self.img)
+        if self.y + self.height > term.height: end = - ((self.y + self.height) - term.height)
+        trunk_img = "\n".join(self.img[start:end])
+        #
+        """
+        for y, line in enumerate(self.img):
             if (y + self.y) < 10 or (y + self.y) > term.height:
                 pass
             else:
                 trunk_img += line + "\n"
-
-        term.move_xy(self.x, start_y)
-        print(trunk_img)
+        """
+        
+        b = time.time()
+        if select:
+            col = term.color_rgb(255, 255, 0)
+        else:
+            col = ""
+        print(col + term.move_xy(self.x, start_y) + trunk_img)
+        c = time.time()
+        #log("Processing/printing {}".format((b-a)/(c-b)))
                 
 class Application:
     def __init__(self, cp):
         self.wins = []
+        self.selected_idx = 0
         self.cp = cp
         with open("file.txt", "r") as f:
             data = f.read()
@@ -138,26 +161,35 @@ class Application:
 
     def getInput(self):
         ch = term.inkey()
-        log(ch.name)
         if ch.name == u"KEY_ESCAPE":
             return False
         elif ch.name == u"KEY_UP": 
             for win in self.wins:
                 win.y += 4
+            self.updateSelected()
         elif ch.name == u"KEY_DOWN":
             for win in self.wins:
                 win.y -= 4
+            self.updateSelected()
+            
         elif repr(ch) == "'a'":
             self.cp.sendBytes("upvote".encode("utf-8"))
-            self.cp.sendBytes(str(self.wins[0].metadata["id"]).encode("utf-8"))
+            self.cp.sendBytes(str(self.wins[self.selected_idx].metadata["id"]).encode("utf-8"))
             
             pass
         return True
-        
+
+    def updateSelected(self):
+        for i, win in enumerate(self.wins):
+            if win.y > 0 and win.y < term.height:
+                log(i)
+                self.selected_idx = i
+                break
+    
     def drawScreen(self):
         print(term.clear())
-        for win in self.wins:
-            win.draw()
+        for i, win in enumerate(self.wins):
+            win.draw(select=i==self.selected_idx)
 
     def main(self):
         #with open("test24bit.txt", "r") as f:
@@ -193,10 +225,11 @@ if __name__ == '__main__':
 
     a = Application(cp)
     a.mainLoop()
-    #for ree in range(9):
-    #    with open('mem' + str(ree) + '.txt', 'rb') as fp:
-    #        data = fp.read()
-    #    cp.sendBytes("upload".encode("utf-8"))
-    #    cp.sendBytes("An interesting title: mem{}".format(ree).encode("utf-8"))
-    #    cp.sendBytes(data)
-    #cp.close()
+    """
+    for ree in range(9):
+        with open('mem' + str(ree) + '.txt', 'rb') as fp:
+            data = fp.read()
+        cp.sendBytes("upload".encode("utf-8"))
+        cp.sendBytes("An interesting title: mem{}".format(ree).encode("utf-8"))
+        cp.sendBytes(data)
+    cp.close()"""
