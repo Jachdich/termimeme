@@ -176,7 +176,10 @@ class Application:
             self.cp.sendBytes("upvote".encode("utf-8"))
             self.cp.sendBytes(str(self.wins[self.selected_idx].metadata["id"]).encode("utf-8"))
             
-            pass
+        elif repr(ch) == "'c'":
+            self.cp.sendBytes("comment".encode("utf-8"))
+            self.cp.sendBytes(str(self.wins[self.selected_idx].metadata["id"]).encode("utf-8"))
+            self.cp.sendBytes("This is the body of the comment".encode("utf-8"))
         return True
 
     def updateSelected(self):
@@ -214,7 +217,7 @@ class Application:
 
 if __name__ == '__main__':
     cp = ClientProtocol()
-    cp.connect('127.0.0.1', 6968)
+    cp.connect('127.0.0.1', 6969)
     success = cp.authenticate("Jachdich", "password")
     if success:
         print("Logged in!")

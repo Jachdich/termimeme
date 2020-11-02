@@ -41,6 +41,12 @@ def makemeta(d):
         ))
     db.commit()
 
+def makecomment(ID, body, user):
+    dbc.execute("insert into comments values (%s, %s, %s, %s, %s);", (
+        ID, body, 0, user, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ))
+    db.commit()
+
 class ServerProtocol:
 
     def __init__(self, connection):
@@ -131,6 +137,7 @@ class ServerProtocol:
                     self.connection.sendall(b'\00')
                     ID = self.recv_msg()
                     body = self.recv_msg()
+                    makecomment(ID, body, self.user)
                     
                 elif command == b"get":
                     self.connection.sendall(b'\00')
@@ -148,7 +155,7 @@ if __name__ == '__main__':
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certfile="cert.pem", keyfile="cert.pem")
     s = socket(AF_INET, SOCK_STREAM)
-    s.bind(("127.0.0.1", 6968))
+    s.bind(("127.0.0.1", 6969))
     s.listen(100)
     ss = context.wrap_socket(s, server_side=True)
     clients = []
