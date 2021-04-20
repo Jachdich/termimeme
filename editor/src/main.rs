@@ -9,7 +9,17 @@ use crate::termion::input::TermRead;
 struct RGB {
 	r: u8,
 	g: u8,
-	b: u8
+	b: u8,
+	default: bool,
+}
+
+impl RGB {
+    fn new(r: u8, g: u8, b: u8) -> Self {
+        RGB {
+            r: r, g: g, b: b,
+            default: false
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -45,15 +55,15 @@ fn is_24bit(data: &Vec<char>) -> bool {
 fn make_data(data: Vec<char>) -> Vec<Vec<FmtChar>> {
     let mut out: Vec<FmtChar> = Vec::new();
     let mut pos = 0;
-    let mut bg = RGB{r: 0, g: 0, b: 0};
-    let mut fg = RGB{r: 255, g: 255, b: 255};
+    let mut bg = RGB::new(0, 0, 0);
+    let mut fg = RGB::new(255, 255, 255);
 
     while pos < data.len() {
         if data[pos] == '\u{001b}' {
             pos += 2;
             if data[pos..pos + 2].to_vec().into_iter().collect::<String>() == "0m" {
-                bg = RGB{r: 0, g: 0, b: 0};
-                fg = RGB{r: 255, g: 255, b: 255};
+                bg = RGB::new(0, 0, 0);
+                fg = RGB::new(255, 255, 255);
                 pos += 2;
                 continue;
             }
@@ -69,9 +79,9 @@ fn make_data(data: Vec<char>) -> Vec<Vec<FmtChar>> {
             pos += 1;
             let s: String = first_num.into_iter().collect();
             if s == "38" {
-                fg = RGB{r, g, b};
+                fg = RGB::new(r, g, b);
             } else if s == "48" {
-                bg = RGB{r, g, b};
+                bg = RGB::new(r, g, b);
             }
         } else {
             out.push(FmtChar{ch: data[pos], fg: fg, bg: bg});
@@ -106,10 +116,25 @@ fn construct_buffer(data: &Vec<Vec<FmtChar>>) -> String {
 	buffer
 }
 
+#[derive(PartialEq)]
+enum Focus {
+    Image,
+    Toolbox,
+    Charsheet,
+}
+
+#[derive(Debug, PartialEq)]
+enum Tool {
+    None,
+    Pen,
+    Paint,
+    Text
+}
+
 fn main() {
 	let stdout = stdout().into_raw_mode().unwrap();
 	let mut screen = termion::input::MouseTerminal::from(stdout).into_raw_mode().unwrap();
-	let contents =   std::fs::read_to_string("mem0.txt").unwrap();
+	let contents =   std::fs::read_to_string("mem1.txt").unwrap();
 	let char_sheet = std::fs::read_to_string("character_sheet.txt").unwrap();
 
 	let mut data = make_data(contents.chars().collect::<Vec<char>>());
@@ -118,52 +143,115 @@ fn main() {
 	
     let stdin = stdin();
 
-    let mut x: u16 = 3;
-    let mut y: u16 = 2;
-    let mut curr_fg = RGB{r: 0, g: 0, b: 0};
-    let mut curr_bg = RGB{r: 255, g: 255, b: 255};
+    let mut img_cur_x: u16 = 3;
+    let mut img_cur_y: u16 = 2;
+    let mut curr_fg = RGB::new(0, 0, 0);
+    let mut curr_bg = RGB::new(0, 0, 0);
 //	println!("{:?}", data);
 	write!(screen, "{}{}", termion::cursor::Hide, termion::clear::All).unwrap();
 
 	let mut curr_buffer: String = construct_buffer(&data);
 
-    for event in stdin.events() {
+	//let mut image_shown = true;
+	//let mut chars_shown = false;
 
-		match event.unwrap() {
+    let mut pen_char: char = ' ';
+
+	let mut focus = Focus::Image;
+	let mut tool = Tool::None;
+	let mut tool_down = false;
+
+    for event in stdin.events() {
+        let event = event.unwrap();
+		match event.clone() {
 			Event::Key(Key::Ctrl('c')) => break,
 			Event::Key(Key::Ctrl('q')) => break,
 			Event::Key(Key::Ctrl('s')) => {
-				let mut file = std::fs::File::create("mem0.txt").unwrap();
-				file.write_all(curr_buffer.as_bytes()).unwrap();
+				let mut file = std::fs::File::create("mem1.txt").unwrap();
+				file.write_all(curr_buffer.replace("\r\n", "\n").as_bytes()).unwrap();
 			},
-			Event::Key(Key::Left) => x -= 1,
-			Event::Key(Key::Right) => x += 1,
-			Event::Key(Key::Up) => y -= 1,
-			Event::Key(Key::Down) => y += 1,
-			Event::Key(Key::Char('\n')) => y += 1,
-			Event::Key(Key::Char(c)) => {
-				data[(y - 1) as usize][(x - 1) as usize].ch = c;
-				data[(y - 1) as usize][(x - 1) as usize].fg = curr_fg;
-				x += 1;
-				curr_buffer = construct_buffer(&data);
-			}
+			Event::Key(Key::Ctrl('e')) => {
+			    
+			},
+			Event::Key(Key::Char('\t')) => {
+			    if focus == Focus::Image {
+			        focus = Focus::Toolbox;
+			    } else if focus == Focus::Toolbox {
+			        focus = Focus::Image;
+			    }
+			},
 			_ => (),
-		}
-		if x < 1 { x = 1; }
-		if y < 1 { y = 1; }
-		if x > width  { x = width; }
-		if y > height { y = height; }
+		}		
+
+        if focus == Focus::Image {
+            match event.clone() {
+                Event::Key(Key::Left) => img_cur_x -= 1,
+    			Event::Key(Key::Right) => img_cur_x += 1,
+    			Event::Key(Key::Up) => img_cur_y -= 1,
+    			Event::Key(Key::Down) => img_cur_y += 1,
+    			Event::Key(Key::Char('\n')) => tool_down = !tool_down,
+    		    _ => (),
+			}
+
+			if !tool_down {
+			    match event.clone() {
+       			    Event::Key(Key::Char('t')) => {
+           				tool = Tool::Text;
+           			}
+           			Event::Key(Key::Char('p')) => {
+                        tool = Tool::Pen;
+           			}
+           			Event::Key(Key::Char('o')) => {
+           			    tool = Tool::Paint;
+           			}
+           			_ => (),
+       			}
+			}
+			if tool == Tool::Text && tool_down {
+			    match event.clone() {
+    			    Event::Key(Key::Char(c)) => {
+        				data[(img_cur_y - 1) as usize][(img_cur_x - 1) as usize].ch = c;
+        				data[(img_cur_y - 1) as usize][(img_cur_x - 1) as usize].fg = curr_fg;
+        				img_cur_x += 1;
+        				curr_buffer = construct_buffer(&data);
+        			}
+        			_ => (),
+    			}
+			} else if tool == Tool::Pen && tool_down {
+			    if !curr_fg.default {
+			        data[(img_cur_y - 1) as usize][(img_cur_x - 1) as usize].fg = curr_fg;
+			    }
+			    if !curr_bg.default {
+    		        data[(img_cur_y - 1) as usize][(img_cur_x - 1) as usize].bg = curr_bg;
+    		    }
+    		    data[(img_cur_y - 1) as usize][(img_cur_x - 1) as usize].ch = pen_char;
+    		    curr_buffer = construct_buffer(&data);
+			}
+        }
+		
+		if img_cur_x < 1 { img_cur_x = 1; }
+		if img_cur_y < 1 { img_cur_y = 1; }
+		if img_cur_x > width  { img_cur_x = width; }
+		if img_cur_y > height { img_cur_y = height; }
 
 		write!(screen, "{}{}{}{}{}{}{}{}",
 			termion::clear::All,
 			termion::cursor::Goto(1, 1),
 			curr_buffer,
-			termion::cursor::Goto(x, y),
+			termion::cursor::Goto(img_cur_x, img_cur_y),
 			termion::color::Bg(termion::color::Black),
 			termion::color::Fg(termion::color::White),
-			data[(y - 1) as usize][(x - 1) as usize].ch,
-			termion::cursor::Goto(x, y)
+			data[(img_cur_y - 1) as usize][(img_cur_x - 1) as usize].ch,
+			termion::cursor::Goto(img_cur_x, img_cur_y)
 		).unwrap();
+
+        write!(screen, "{}{:?}{}{}",
+            termion::cursor::Goto(width + 1, 1),
+            tool,
+            termion::cursor::Goto(width + 1, 2),
+            tool_down,
+        ).unwrap();
+		
 		screen.flush().unwrap();
 	}
 }
