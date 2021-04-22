@@ -389,6 +389,17 @@ fn main() {
     		    curr_buffer = construct_buffer(&data);
 			}
         }
+		let cur_fg: termion::color::Fg<termion::color::Rgb>;
+		let cur_bg: termion::color::Bg<termion::color::Rgb>;
+		if (tool == Tool::Paint || tool == Tool::Pen) && tool_down {
+			cur_bg = curr_bg.to_bg();
+			cur_fg = curr_fg.to_fg();
+		} else {
+			cur_bg = termion::color::Bg(termion::color::Rgb(0, 0, 0));
+			cur_fg = termion::color::Fg(termion::color::Rgb(255, 255, 255));
+			
+		}
+
 
 		write!(screen, "{}{}{}{}{}{}{}{}{}",
 			termion::color::Bg(termion::color::Reset),
@@ -396,8 +407,8 @@ fn main() {
 			termion::cursor::Goto(1, 1),
 			curr_buffer,
 			termion::cursor::Goto(img_cur_x, img_cur_y),
-			termion::color::Bg(termion::color::Black),
-			termion::color::Fg(termion::color::White),
+			cur_fg,
+			cur_bg,
 			data[(img_cur_y - 1) as usize][(img_cur_x - 1) as usize].ch,
 			termion::cursor::Goto(img_cur_x, img_cur_y)
 		).unwrap();
@@ -417,7 +428,7 @@ fn main() {
 		for line in &char_sheet {
 			for ch in line {
 				write!(screen, "{}{}{}{}",
-					termion::cursor::Goto(width + 1 + x, y + 9),
+					termion::cursor::Goto(width + 9 + x, y + 2),
 					termion::color::Fg(termion::color::Reset),
 					termion::color::Bg(termion::color::Reset),
 					ch).unwrap();
@@ -428,10 +439,10 @@ fn main() {
 		}
 
 		write!(screen, "{}╭─╮{}│{}│{}╰─╯",
-			termion::cursor::Goto(width + 1 + (char_cur_x - 1) * 2 - 1, 9 + (char_cur_y - 1) * 2 - 1),
-			termion::cursor::Goto(width + 1 + (char_cur_x - 1) * 2 - 1, 9 + (char_cur_y - 1) * 2),
-			termion::cursor::Goto(width + 1 + (char_cur_x - 1) * 2 + 1, 9 + (char_cur_y - 1) * 2),
-			termion::cursor::Goto(width + 1 + (char_cur_x - 1) * 2 - 1, 9 + (char_cur_y - 1) * 2 + 1),
+			termion::cursor::Goto(width + 9 + (char_cur_x - 1) * 2 - 1, 2 + (char_cur_y - 1) * 2 - 1),
+			termion::cursor::Goto(width + 9 + (char_cur_x - 1) * 2 - 1, 2 + (char_cur_y - 1) * 2),
+			termion::cursor::Goto(width + 9 + (char_cur_x - 1) * 2 + 1, 2 + (char_cur_y - 1) * 2),
+			termion::cursor::Goto(width + 9 + (char_cur_x - 1) * 2 - 1, 2 + (char_cur_y - 1) * 2 + 1),
 		).unwrap();
 		
 		screen.flush().unwrap();
