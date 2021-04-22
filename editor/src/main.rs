@@ -60,10 +60,16 @@ struct FmtChar {
 }
 
 fn read_until(ch: char, data: &Vec<char>, mut pos: usize) -> (Vec<char>, usize) {
+    if pos >= data.len() - 1 {
+        return (vec![], pos);
+    }
     let start = pos;
-    while data[pos] != ch {
+    while pos < data.len() && data[pos] != ch {
     	pos += 1;
     }
+    if pos >= data.len() - 1 {
+        return (data[start..pos].to_vec(), pos);
+    } 
     (data[start..pos].to_vec(), pos)
 }
 /*    
@@ -95,6 +101,18 @@ fn make_data(data: Vec<char>) -> Vec<Vec<FmtChar>> {
                 bg = RGB::new(0, 0, 0);
                 fg = RGB::new(255, 255, 255);
                 pos += 2;
+                continue;
+            }
+            if data[pos..pos + 3].to_vec().into_iter().collect::<String>() == "39m" {
+                bg = RGB::new(0, 0, 0);
+                fg = RGB::new(255, 255, 255);
+                pos += 3;
+                continue;
+            }
+            if data[pos..pos + 3].to_vec().into_iter().collect::<String>() == "49m" {
+                bg = RGB::new(0, 0, 0);
+                fg = RGB::new(255, 255, 255);
+                pos += 3;
                 continue;
             }
             let (first_num,   npos) = read_until(';', &data, pos); pos = npos;
@@ -141,7 +159,7 @@ fn construct_buffer(data: &Vec<Vec<FmtChar>>) -> String {
 			buffer.push_str(&termion::color::Bg(termion::color::Rgb(ch.bg.r, ch.bg.g, ch.bg.b)).to_string());
 			buffer.push(ch.ch);
 		}
-		buffer.push_str("\r\n");
+		buffer.push_str(&format!("{}{}\r\n", termion::color::Fg(termion::color::Reset), termion::color::Bg(termion::color::Reset)));
 	}
 	buffer
 }
